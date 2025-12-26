@@ -38,34 +38,38 @@ async def validate_auth(
                 "X-Requested-With": "XMLHttpRequest",
             }
             
-            async with session.post(
+                async with session.post(
                 f"{API_BASE_URL}/Login/ClientLogin",
                 json=body,
                 headers=headers,
             ) as response:
+                _LOGGER.debug("Login response status: %s", response.status)
+                
                 if response.status != 200:
-                    _LOGGER.error("Login failed with status %s", response.status)
+                    text = await response.text()
+                    _LOGGER.error("Login failed with status %s: %s", response.status, text[:500])
                     raise InvalidAuth
 
                 try:
                     data = await response.json()
                 except Exception as e:
-                    _LOGGER.error("Failed to parse login response: %s", e)
+                    text = await response.text()
+                    _LOGGER.error("Failed to parse login response: %s. Response: %s", e, text[:500])
                     raise InvalidAuth
 
-                # Check for errors - ErrorId can be None on success (same logic as test_melcloud.py)
+                # Check for errors (ErrorId can be None on success, so check if it's not None)
+                # Same logic as test_melcloud.py
                 if not data:
                     _LOGGER.error("Empty response from login")
                     raise InvalidAuth
                 
-                # Check for errors (ErrorId can be None on success, so check if it's not None)
                 if "ErrorId" in data:
                     error_id = data.get("ErrorId")
                     if error_id is not None:
                         error_msg = data.get("ErrorMessage", f"Error ID: {error_id}")
                         _LOGGER.error("Login error: %s", error_msg)
                         raise InvalidAuth
-
+                
                 login_data = data.get("LoginData")
                 if not login_data:
                     _LOGGER.error("No LoginData in response. Response keys: %s", list(data.keys()))
@@ -76,7 +80,9 @@ async def validate_auth(
                     _LOGGER.error("No ContextKey in LoginData. LoginData keys: %s", list(login_data.keys()))
                     raise InvalidAuth
 
-                # Get device list
+                _LOGGER.debug("Authentication successful, context key obtained")
+
+                # Get device list (same headers format as test_melcloud.py)
                 headers = {
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
                     "Accept": "application/json, text/javascript, */*; q=0.01",
@@ -85,21 +91,37 @@ async def validate_auth(
                     "X-Requested-With": "XMLHttpRequest",
                     "Cookie": "policyaccepted=true",
                 }
+                
                 async with session.get(
                     f"{API_BASE_URL}/User/ListDevices",
                     headers=headers,
                 ) as devices_response:
                     if devices_response.status != 200:
+                        text = await devices_response.text()
+                        _LOGGER.error("Failed to get device list (status %s): %s", devices_response.status, text[:500])
                         raise CannotConnect
 
-                    devices_data = await devices_response.json()
+                    try:
+                        devices_data = await devices_response.json()
+                    except Exception as e:
+                        text = await devices_response.text()
+                        _LOGGER.error("Failed to parse device list response: %s. Response: %s", e, text[:500])
+                        raise CannotConnect
+                    
                     return {
                         "context_key": context_key,
                         "devices": devices_data,
                     }
+                    
+        except (InvalidAuth, CannotConnect):
+            # Re-raise our custom exceptions
+            raise
         except aiohttp.ClientError as err:
             _LOGGER.exception("Error connecting to MelCloud API: %s", err)
             raise CannotConnect from err
+        except Exception as err:
+            _LOGGER.exception("Unexpected error during authentication: %s", err)
+            raise InvalidAuth from err
 
 
 class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
