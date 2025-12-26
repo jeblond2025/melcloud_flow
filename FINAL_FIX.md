@@ -42,7 +42,7 @@ Ai două opțiuni:
 ```yaml
 input_text:
   melcloud_email:
-    name: "bogdan.sandulache@gmail.com"  # ❌ GREȘIT
+    name: "your_email@example.com"  # ❌ GREȘIT - nu pune email-ul real aici
     initial: ""
 ```
 
