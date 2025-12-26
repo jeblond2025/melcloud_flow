@@ -9,11 +9,12 @@
         value_template: "{{ states('input_text.melcloud_context_key') != '' and states('input_text.melcloud_context_key') != 'ERROR' }}"
     action:
       - service: rest_command.melcloud_get_data
+        response_variable: device_data
       - service: sensor.set_state
         entity_id: sensor.melcloud_data
         data_template:
           state: "{{ now().isoformat() }}"
-          attributes: "{{ states('sensor.melcloud_get_data') | from_json | default({}) }}"
+          attributes: "{{ device_data.json() if device_data.status == 200 else {} }}"
 
   - alias: "MelCloud Set Flow Temperature"
     trigger:

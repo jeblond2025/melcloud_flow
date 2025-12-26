@@ -1,12 +1,22 @@
 # Adaugă acest script în scripts.yaml
-# Opțiunea 1: Folosește Python Script Helper (Recomandat)
-# Creează /config/python_scripts/melcloud_login.py (vezi melcloud_login_alternative.py)
+# Folosește response_variable pentru a procesa răspunsul
 
   melcloud_login:
     alias: "MelCloud Login"
     sequence:
-      - service: python_script.melcloud_login
-
-# Opțiunea 2: Dacă nu folosești Python Scripts, setează context key-ul manual
-# Rulează test_melcloud.py pentru a obține context key-ul, apoi setează-l manual în UI
+      - service: rest_command.melcloud_login
+        response_variable: login_response
+      - service: input_text.set_value
+        entity_id: input_text.melcloud_context_key
+        data_template: >
+          {% if login_response.status == 200 %}
+            {% set data = login_response.json() %}
+            {% if data.ErrorId is none or data.ErrorId == null %}
+              {{ data.LoginData.ContextKey }}
+            {% else %}
+              ERROR
+            {% endif %}
+          {% else %}
+            ERROR
+          {% endif %}
 

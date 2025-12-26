@@ -136,6 +136,7 @@ rest_command:
         "Persist": true,
         "CaptchaResponse": null
       }
+    response_variable: melcloud_login_response
 
   melcloud_set_temp:
     url: "https://app.melcloud.com/Mitsubishi.Wifi.Client/Device/SetAtw"
