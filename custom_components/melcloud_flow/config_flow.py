@@ -44,14 +44,33 @@ async def validate_auth(
                 headers=headers,
             ) as response:
                 if response.status != 200:
+                    _LOGGER.error("Login failed with status %s", response.status)
                     raise InvalidAuth
 
-                data = await response.json()
-                if not data or "ErrorId" in data:
+                try:
+                    data = await response.json()
+                except Exception as e:
+                    _LOGGER.error("Failed to parse login response: %s", e)
                     raise InvalidAuth
 
-                context_key = data.get("LoginData", {}).get("ContextKey")
+                # Check for errors - ErrorId can be None on success
+                if not data:
+                    _LOGGER.error("Empty response from login")
+                    raise InvalidAuth
+                
+                if "ErrorId" in data and data.get("ErrorId") is not None:
+                    error_msg = data.get("ErrorMessage", f"Error ID: {data.get('ErrorId')}")
+                    _LOGGER.error("Login error: %s", error_msg)
+                    raise InvalidAuth
+
+                login_data = data.get("LoginData")
+                if not login_data:
+                    _LOGGER.error("No LoginData in response. Response keys: %s", list(data.keys()))
+                    raise InvalidAuth
+
+                context_key = login_data.get("ContextKey")
                 if not context_key:
+                    _LOGGER.error("No ContextKey in LoginData. LoginData keys: %s", list(login_data.keys()))
                     raise InvalidAuth
 
                 # Get device list
@@ -114,9 +133,9 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 for device in devices_list:
                     if not isinstance(device, dict):
                         continue
-                    # Device might be wrapped in Device key or be the device itself
-                    device_obj = device.get("Device", device)
-                    if isinstance(device_obj, dict) and device_obj.get("UnitType") == 0:  # Air-to-Water
+                    # DeviceType: 0=ATA, 1=ATW (Air-to-Water), 3=ERV
+                    device_type = device.get("DeviceType")
+                    if device_type == 1:  # ATW (Air-to-Water)
                         devices.append(device)
 
                 if not devices:
