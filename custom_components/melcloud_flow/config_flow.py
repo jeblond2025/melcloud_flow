@@ -15,6 +15,14 @@ from .const import DOMAIN, API_BASE_URL
 _LOGGER = logging.getLogger(__name__)
 
 
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
+
+
 async def validate_auth(
     hass: HomeAssistant, username: str, password: str
 ) -> Dict[str, Any]:
@@ -304,12 +312,4 @@ class ConfigFlow(config_entries.ConfigFlow):
             ),
             errors=errors,
         )
-
-
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidAuth(HomeAssistantError):
-    """Error to indicate there is invalid auth."""
 
