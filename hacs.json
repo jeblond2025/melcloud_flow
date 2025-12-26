@@ -1,0 +1,8 @@
+{
+  "name": "MelCloud Flow Temperature",
+  "content_in_root": false,
+  "filename": "melcloud_flow",
+  "domains": ["melcloud_flow"],
+  "iot_class": "Cloud Polling"
+}
+
