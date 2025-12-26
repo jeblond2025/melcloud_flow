@@ -1,0 +1,209 @@
+"""Config flow for MelCloud Flow Temperature integration."""
+import logging
+from typing import Any, Dict, Optional
+
+import aiohttp
+import voluptuous as vol
+
+from homeassistant import config_entries
+from homeassistant.core import HomeAssistant
+from homeassistant.data_entry_flow import FlowResult
+from homeassistant.exceptions import HomeAssistantError
+
+from .const import DOMAIN, API_BASE_URL
+
+_LOGGER = logging.getLogger(__name__)
+
+
+async def validate_auth(
+    hass: HomeAssistant, username: str, password: str
+) -> Dict[str, Any]:
+    """Validate credentials and return device list."""
+    async with aiohttp.ClientSession() as session:
+        try:
+            body = {
+                "Email": username,
+                "Password": password,
+                "Language": 0,
+                "AppVersion": "1.19.1.1",
+                "Persist": True,
+                "CaptchaResponse": None,
+            }
+            
+            headers = {
+                "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "Accept-Language": "en-US,en;q=0.5",
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+            
+            async with session.post(
+                f"{API_BASE_URL}/Login/ClientLogin",
+                json=body,
+                headers=headers,
+            ) as response:
+                if response.status != 200:
+                    raise InvalidAuth
+
+                data = await response.json()
+                if not data or "ErrorId" in data:
+                    raise InvalidAuth
+
+                context_key = data.get("LoginData", {}).get("ContextKey")
+                if not context_key:
+                    raise InvalidAuth
+
+                # Get device list
+                headers = {
+                    "User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:73.0) Gecko/20100101 Firefox/73.0",
+                    "Accept": "application/json, text/javascript, */*; q=0.01",
+                    "Accept-Language": "en-US,en;q=0.5",
+                    "X-MitsContextKey": context_key,
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Cookie": "policyaccepted=true",
+                }
+                async with session.get(
+                    f"{API_BASE_URL}/User/ListDevices",
+                    headers=headers,
+                ) as devices_response:
+                    if devices_response.status != 200:
+                        raise CannotConnect
+
+                    devices_data = await devices_response.json()
+                    return {
+                        "context_key": context_key,
+                        "devices": devices_data,
+                    }
+        except aiohttp.ClientError as err:
+            _LOGGER.exception("Error connecting to MelCloud API: %s", err)
+            raise CannotConnect from err
+
+
+class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for MelCloud Flow Temperature."""
+
+    VERSION = 1
+
+    async def async_step_user(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        """Handle the initial step."""
+        errors: Dict[str, str] = {}
+
+        if user_input is not None:
+            try:
+                info = await validate_auth(
+                    self.hass,
+                    user_input["username"],
+                    user_input["password"],
+                )
+
+                # Find Air-to-Water devices
+                devices_raw = info["devices"]
+                # Handle both list and dict responses
+                if isinstance(devices_raw, list):
+                    devices_list = devices_raw
+                elif isinstance(devices_raw, dict):
+                    # If wrapped, try common keys
+                    devices_list = devices_raw.get("DeviceListItems", devices_raw.get("Devices", []))
+                else:
+                    devices_list = []
+
+                devices = []
+                for device in devices_list:
+                    if not isinstance(device, dict):
+                        continue
+                    # Device might be wrapped in Device key or be the device itself
+                    device_obj = device.get("Device", device)
+                    if isinstance(device_obj, dict) and device_obj.get("UnitType") == 0:  # Air-to-Water
+                        devices.append(device)
+
+                if not devices:
+                    errors["base"] = "no_devices"
+                else:
+                    # Store devices and credentials for selection step
+                    self.context["devices"] = devices
+                    self.context["context_key"] = info["context_key"]
+                    self.context["username"] = user_input["username"]
+                    self.context["password"] = user_input["password"]
+                    return await self.async_step_device()
+
+            except CannotConnect:
+                errors["base"] = "cannot_connect"
+            except InvalidAuth:
+                errors["base"] = "invalid_auth"
+            except Exception:
+                _LOGGER.exception("Unexpected exception")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("username"): str,
+                    vol.Required("password"): str,
+                }
+            ),
+            errors=errors,
+        )
+
+    async def async_step_device(
+        self, user_input: Optional[Dict[str, Any]] = None
+    ) -> FlowResult:
+        """Handle device selection step."""
+        errors: Dict[str, str] = {}
+
+        # Get devices from context (stored in previous step)
+        devices = self.context.get("devices", [])
+
+        if user_input is not None:
+            device_id = user_input["device"]
+            device_info = next(
+                (d for d in devices if d["Device"]["DeviceID"] == int(device_id)),
+                None
+            )
+
+            if device_info:
+                device_name = device_info["Device"].get("DeviceName", "MelCloud Heat Pump")
+                
+                await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
+                self._abort_if_unique_id_configured()
+
+                return self.async_create_entry(
+                    title=device_name,
+                    data={
+                        "username": self.context.get("username", ""),
+                        "password": self.context.get("password", ""),
+                        "context_key": self.context.get("context_key", ""),
+                        "device_id": int(device_id),
+                        "building_id": device_info["Device"]["BuildingID"],
+                    },
+                )
+
+        if not devices:
+            return self.async_abort(reason="no_devices")
+
+        return self.async_show_form(
+            step_id="device",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("device"): vol.In(
+                        {
+                            str(d["Device"]["DeviceID"]): f"{d['Device'].get('DeviceName', 'Unknown')} (ID: {d['Device']['DeviceID']})"
+                            for d in devices
+                        }
+                    ),
+                }
+            ),
+            errors=errors,
+        )
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
+

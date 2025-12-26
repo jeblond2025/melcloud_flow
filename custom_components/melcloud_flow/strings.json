@@ -1,0 +1,32 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MelCloud Authentication",
+        "description": "Enter your MelCloud credentials",
+        "data": {
+          "username": "Email/Username",
+          "password": "Password"
+        }
+      },
+      "device": {
+        "title": "Select Device",
+        "description": "Select your heat pump device",
+        "data": {
+          "device": "Device"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Unable to connect to MelCloud API",
+      "invalid_auth": "Invalid authentication credentials",
+      "no_devices": "No Air-to-Water heat pump devices found",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Device is already configured",
+      "no_devices": "No Air-to-Water heat pump devices found"
+    }
+  }
+}
+
