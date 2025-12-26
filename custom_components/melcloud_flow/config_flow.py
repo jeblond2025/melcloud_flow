@@ -38,7 +38,7 @@ async def validate_auth(
                 "X-Requested-With": "XMLHttpRequest",
             }
             
-                async with session.post(
+            async with session.post(
                 f"{API_BASE_URL}/Login/ClientLogin",
                 json=body,
                 headers=headers,
