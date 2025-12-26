@@ -1,0 +1,12 @@
+# Adaugă acest script în scripts.yaml
+# Opțiunea 1: Folosește Python Script Helper (Recomandat)
+# Creează /config/python_scripts/melcloud_login.py (vezi melcloud_login_alternative.py)
+
+  melcloud_login:
+    alias: "MelCloud Login"
+    sequence:
+      - service: python_script.melcloud_login
+
+# Opțiunea 2: Dacă nu folosești Python Scripts, setează context key-ul manual
+# Rulează test_melcloud.py pentru a obține context key-ul, apoi setează-l manual în UI
+

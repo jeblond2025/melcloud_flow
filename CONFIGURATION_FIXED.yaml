@@ -136,17 +136,6 @@ rest_command:
         "Persist": true,
         "CaptchaResponse": null
       }
-    response_template: >
-      {% if response.status == 200 %}
-        {% set data = response.json() %}
-        {% if data.ErrorId is none or data.ErrorId == null %}
-          {{ data.LoginData.ContextKey }}
-        {% else %}
-          ERROR
-        {% endif %}
-      {% else %}
-        ERROR
-      {% endif %}
 
   melcloud_set_temp:
     url: "https://app.melcloud.com/Mitsubishi.Wifi.Client/Device/SetAtw"
@@ -174,12 +163,12 @@ rest_command:
       X-MitsContextKey: "{{ states('input_text.melcloud_context_key') }}"
       X-Requested-With: "XMLHttpRequest"
       Cookie: "policyaccepted=true"
-    response_template: "{{ response.json() }}"
 
+# Template sensors pentru temperaturi (folosesc sensor.melcloud_data care este populat de automation)
 template:
   - trigger:
-      - platform: time_pattern
-        minutes: /2
+      - platform: state
+        entity_id: sensor.melcloud_data
     sensor:
       - name: "MelCloud Temperature Tur"
         state: "{{ state_attr('sensor.melcloud_data', 'TankWaterTemperature') | default(state_attr('sensor.melcloud_data', 'RoomTemperatureZone1')) | float(0) }}"

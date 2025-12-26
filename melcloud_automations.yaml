@@ -1,0 +1,27 @@
+# Adaugă aceste automation-uri în automations.yaml
+
+  - alias: "MelCloud Get Data"
+    trigger:
+      - platform: time_pattern
+        minutes: /2
+    condition:
+      - condition: template
+        value_template: "{{ states('input_text.melcloud_context_key') != '' and states('input_text.melcloud_context_key') != 'ERROR' }}"
+    action:
+      - service: rest_command.melcloud_get_data
+      - service: sensor.set_state
+        entity_id: sensor.melcloud_data
+        data_template:
+          state: "{{ now().isoformat() }}"
+          attributes: "{{ states('sensor.melcloud_get_data') | from_json | default({}) }}"
+
+  - alias: "MelCloud Set Flow Temperature"
+    trigger:
+      - platform: state
+        entity_id: input_number.melcloud_flow_temp
+    condition:
+      - condition: template
+        value_template: "{{ states('input_text.melcloud_context_key') != '' and states('input_text.melcloud_context_key') != 'ERROR' }}"
+    action:
+      - service: rest_command.melcloud_set_temp
+
