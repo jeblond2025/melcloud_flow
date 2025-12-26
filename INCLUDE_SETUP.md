@@ -30,18 +30,21 @@ Deschide `configuration.yaml` și adaugă la sfârșit:
 ## Pasul 4: Completează datele
 
 1. Mergi la **Settings** → **Devices & Services** → **Helpers**
-2. Completează:
+2. Completează **DOAR** următoarele (lasă `melcloud_context_key` gol - va fi populat automat):
    - `input_text.melcloud_email` → Email-ul tău MelCloud
    - `input_text.melcloud_password` → Parola ta MelCloud
    - `input_text.melcloud_device_id` → DeviceID (obținut din `test_melcloud.py`)
    - `input_text.melcloud_building_id` → BuildingID (obținut din `test_melcloud.py`)
+   - `input_text.melcloud_context_key` → **LASĂ GOL** (va fi populat automat la login)
 
 ## Pasul 5: Rulează login
 
 1. Mergi la **Developer Tools** → **Services**
 2. Selectează `script.melcloud_login`
 3. Click **Call Service**
-4. Verifică că `input_text.melcloud_context_key` are o valoare (nu "ERROR")
+4. **IMPORTANT:** Verifică că `input_text.melcloud_context_key` a fost populat automat cu o valoare lungă (nu "ERROR" și nu gol)
+   - Dacă apare "ERROR", verifică că email-ul și parola sunt corecte
+   - Context key-ul este un string lung (token de autentificare) obținut de la API-ul MelCloud
 
 ## Pasul 6: Testează
 
