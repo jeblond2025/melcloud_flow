@@ -25,7 +25,7 @@ Integrare custom pentru Home Assistant care permite controlul temperaturii de cu
 2. În HACS, mergi la Integrations
 3. Click pe "..." (meniul din colț) → "Custom repositories"
 4. Adaugă repository-ul acestui proiect:
-   - Repository: `yourusername/melcloud_flow` (înlocuiește cu repository-ul tău real)
+   - Repository: `jeblond2025/melcloud_flow`
    - Category: Integration
 5. Click pe "MelCloud Flow Temperature" → "Download"
 6. Repornește Home Assistant
