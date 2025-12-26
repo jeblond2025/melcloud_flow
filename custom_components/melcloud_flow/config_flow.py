@@ -124,7 +124,7 @@ async def validate_auth(
             raise InvalidAuth from err
 
 
-class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class ConfigFlow(config_entries.ConfigFlow):
     """Handle a config flow for MelCloud Flow Temperature."""
 
     VERSION = 1
