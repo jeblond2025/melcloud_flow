@@ -144,22 +144,60 @@ class ConfigFlow(config_entries.ConfigFlow):
                 )
 
                 # Find Air-to-Water devices
+                # Parse device structure (same as test_melcloud.py)
                 devices_raw = info["devices"]
-                # Handle both list and dict responses
+                devices_list = []
+                
                 if isinstance(devices_raw, list):
-                    devices_list = devices_raw
+                    # Parse structure like in test_melcloud.py
+                    for entry in devices_raw:
+                        if isinstance(entry, dict) and "Structure" in entry:
+                            structure = entry["Structure"]
+                            # Add devices from root level
+                            if "Devices" in structure:
+                                devices_list.extend(structure["Devices"])
+                            # Add devices from Areas
+                            if "Areas" in structure:
+                                for area in structure["Areas"]:
+                                    if "Devices" in area:
+                                        devices_list.extend(area["Devices"])
+                            # Add devices from Floors and their Areas
+                            if "Floors" in structure:
+                                for floor in structure["Floors"]:
+                                    if "Devices" in floor:
+                                        devices_list.extend(floor["Devices"])
+                                    if "Areas" in floor:
+                                        for area in floor["Areas"]:
+                                            if "Devices" in area:
+                                                devices_list.extend(area["Devices"])
+                        elif isinstance(entry, dict):
+                            # If no Structure, add entry directly
+                            devices_list.append(entry)
                 elif isinstance(devices_raw, dict):
                     # If wrapped, try common keys
                     devices_list = devices_raw.get("DeviceListItems", devices_raw.get("Devices", []))
-                else:
-                    devices_list = []
 
-                devices = []
-                for device in devices_list:
-                    if not isinstance(device, dict):
+                # Remove duplicates by DeviceID
+                visited = set()
+                unique_devices = []
+                for d in devices_list:
+                    if not isinstance(d, dict):
                         continue
-                    # DeviceType: 0=ATA, 1=ATW (Air-to-Water), 3=ERV
-                    device_type = device.get("DeviceType")
+                    device_id = d.get("DeviceID")
+                    if device_id is not None and device_id not in visited:
+                        visited.add(device_id)
+                        unique_devices.append(d)
+
+                # Filter Air-to-Water devices (DeviceType: 0=ATA, 1=ATW, 3=ERV)
+                devices = []
+                for device in unique_devices:
+                    # Device might be wrapped in Device key or be the device itself
+                    device_obj = device.get("Device", device)
+                    if isinstance(device_obj, dict):
+                        device_type = device_obj.get("DeviceType")
+                    else:
+                        device_type = device.get("DeviceType")
+                    
                     if device_type == 1:  # ATW (Air-to-Water)
                         devices.append(device)
 
@@ -203,13 +241,28 @@ class ConfigFlow(config_entries.ConfigFlow):
 
         if user_input is not None:
             device_id = user_input["device"]
-            device_info = next(
-                (d for d in devices if d["Device"]["DeviceID"] == int(device_id)),
-                None
-            )
+            device_info = None
+            
+            # Find device matching the selected ID
+            for d in devices:
+                device_obj = d.get("Device", d)
+                if isinstance(device_obj, dict):
+                    current_id = device_obj.get("DeviceID")
+                else:
+                    current_id = d.get("DeviceID")
+                
+                if current_id == int(device_id):
+                    device_info = d
+                    break
 
             if device_info:
-                device_name = device_info["Device"].get("DeviceName", "MelCloud Heat Pump")
+                device_obj = device_info.get("Device", device_info)
+                if isinstance(device_obj, dict):
+                    device_name = device_obj.get("DeviceName", "MelCloud Heat Pump")
+                    building_id = device_obj.get("BuildingID")
+                else:
+                    device_name = device_info.get("DeviceName", "MelCloud Heat Pump")
+                    building_id = device_info.get("BuildingID")
                 
                 await self.async_set_unique_id(f"{DOMAIN}_{device_id}")
                 self._abort_if_unique_id_configured()
@@ -221,23 +274,32 @@ class ConfigFlow(config_entries.ConfigFlow):
                         "password": self.context.get("password", ""),
                         "context_key": self.context.get("context_key", ""),
                         "device_id": int(device_id),
-                        "building_id": device_info["Device"]["BuildingID"],
+                        "building_id": building_id,
                     },
                 )
 
         if not devices:
             return self.async_abort(reason="no_devices")
 
+        # Build device selection options
+        device_options = {}
+        for d in devices:
+            device_obj = d.get("Device", d)
+            if isinstance(device_obj, dict):
+                device_id = device_obj.get("DeviceID")
+                device_name = device_obj.get("DeviceName", "Unknown")
+            else:
+                device_id = d.get("DeviceID")
+                device_name = d.get("DeviceName", "Unknown")
+            
+            if device_id is not None:
+                device_options[str(device_id)] = f"{device_name} (ID: {device_id})"
+
         return self.async_show_form(
             step_id="device",
             data_schema=vol.Schema(
                 {
-                    vol.Required("device"): vol.In(
-                        {
-                            str(d["Device"]["DeviceID"]): f"{d['Device'].get('DeviceName', 'Unknown')} (ID: {d['Device']['DeviceID']})"
-                            for d in devices
-                        }
-                    ),
+                    vol.Required("device"): vol.In(device_options),
                 }
             ),
             errors=errors,
