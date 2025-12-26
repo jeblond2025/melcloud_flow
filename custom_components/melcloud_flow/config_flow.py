@@ -53,15 +53,18 @@ async def validate_auth(
                     _LOGGER.error("Failed to parse login response: %s", e)
                     raise InvalidAuth
 
-                # Check for errors - ErrorId can be None on success
+                # Check for errors - ErrorId can be None on success (same logic as test_melcloud.py)
                 if not data:
                     _LOGGER.error("Empty response from login")
                     raise InvalidAuth
                 
-                if "ErrorId" in data and data.get("ErrorId") is not None:
-                    error_msg = data.get("ErrorMessage", f"Error ID: {data.get('ErrorId')}")
-                    _LOGGER.error("Login error: %s", error_msg)
-                    raise InvalidAuth
+                # Check for errors (ErrorId can be None on success, so check if it's not None)
+                if "ErrorId" in data:
+                    error_id = data.get("ErrorId")
+                    if error_id is not None:
+                        error_msg = data.get("ErrorMessage", f"Error ID: {error_id}")
+                        _LOGGER.error("Login error: %s", error_msg)
+                        raise InvalidAuth
 
                 login_data = data.get("LoginData")
                 if not login_data:
