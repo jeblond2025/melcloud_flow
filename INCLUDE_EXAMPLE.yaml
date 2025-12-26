@@ -1,0 +1,13 @@
+# Exemplu de cum ar trebui să arate configuration.yaml
+
+# Configurații existente Home Assistant
+# ... restul configurației tale ...
+
+# La SFÂRȘITUL fișierului, adaugă:
+!include melcloud.yaml
+
+# IMPORTANT: 
+# - Fără indentare (la nivel de root)
+# - Pe o linie separată
+# - La sfârșitul fișierului
+
